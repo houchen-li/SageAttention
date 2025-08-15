@@ -41,9 +41,7 @@ __forceinline__ __device__ uint32_t half2_as_uint32(half2 x) { return *(uint32_t
  * \param x input
  */
 __forceinline__ __device__ float ptx_exp2(float x) {
-  float y;
-  asm volatile("ex2.approx.ftz.f32 %0, %1;" : "=f"(y) : "f"(x));
-  return y;
+  return __musa_exp2_f(x);
 }
 
 /*!
@@ -51,9 +49,7 @@ __forceinline__ __device__ float ptx_exp2(float x) {
  * \param x input
  */
 __forceinline__ __device__ float ptx_log2(float x) {
-  float y;
-  asm volatile("lg2.approx.ftz.f32 %0, %1;" : "=f"(y) : "f"(x));
-  return y;
+  return __musa_log2_f(x);
 }
 
 /*!
@@ -82,9 +78,7 @@ __forceinline__ __device__ half ptx_exp2(half x) {
  * \param x input
  */
 __forceinline__ __device__ float ptx_rcp(float x) {
-  float y;
-  asm volatile("rcp.approx.ftz.f32 %0, %1;" : "=f"(y) : "f"(x));
-  return y;
+  return __frcp_rn(x);
 }
 
 /*!

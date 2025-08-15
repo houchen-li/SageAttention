@@ -25,34 +25,18 @@
 
 namespace mma{
 
-#if (__CUDACC_VER_MAJOR__ >= 11)
-#if (!defined(__CUDA_ARCH__) || (__CUDA_ARCH__ >= 800))
+#if !defined(__MUSA_ARCH__) || __MUSA_ARCH__ == 310
 #define MMA_F16F16F32_M16N8K16_ENABLED
 #define MMA_F16F16F16_M16N8K16_ENABLED
 #define MMA_S8S8S32_M16N8K32_ENABLED
 #define MMA_S4S4S32_M16N8K64_ENABLED
-#endif
-#if (!defined(__CUDA_ARCH__) || (__CUDA_ARCH__ >= 750))
 #define MMA_F16F16F32_M16N8K8_ENABLED
 #define MMA_F16F16F16_M16N8K8_ENABLED
 #define LDMATRIX_M8N8X2_ENABLED
 #define LDMATRIX_M8N8X4_ENABLED
-#endif
-#endif
+#endif /* !defined(__MUSA_ARCH__) || __MUSA_ARCH__ == 310 */
 
-#if (__CUDACC_VER_MAJOR__ * 10000 + __CUDACC_VER_MINOR__ * 100 >= 120400)
-#if (!defined(__CUDA_ARCH__) || (__CUDA_ARCH__ >= 890))
-#define MMA_F8F8F32_M16N8K16_ENABLED
-#endif
-#endif
-
-#if (__CUDACC_VER_MAJOR__ * 10000 + __CUDACC_VER_MINOR__ * 100 >= 120800)
-#if (!defined(__CUDA_ARCH__) || (__CUDA_ARCH__ >= 890))
-#define MMA_F8F8F16_M16N8K16_ENABLED
-#endif
-#endif
-
-#if defined(__CUDA_ARCH__)
+#if defined(__MUSA_ARCH__)
 #define RUNTIME_ASSERT(x) __brkpt()
 #else
 #include <assert.h>
@@ -74,10 +58,13 @@ enum class MMAMode {
 template <typename T>
 __device__ __forceinline__ void ldmatrix_m8n8x2(uint32_t* R, T* smem_ptr) {
 #ifdef LDMATRIX_M8N8X2_ENABLED
-  uint32_t smem_int_ptr = static_cast<uint32_t>(__cvta_generic_to_shared(smem_ptr));
-  asm volatile("ldmatrix.sync.aligned.m8n8.x2.shared.b16 {%0, %1}, [%2];\n"
-               : "=r"(R[0]), "=r"(R[1])
-               : "r"(smem_int_ptr));
+  mtmusa::wmma::fragment<mtmusa::wmma::matrix_a, 16, 8, 16, half, mtmusa::wmma::row_major> frag;
+  mtmusa::wmma::load_matrix_sync(frag, reinterpret_cast<half*>(smem_ptr), 16);
+  for (int i = 0; i < frag.num_elements / 2; ++i) {
+    uint16_t low  = __half2ushort(frag.x[2 * i]);
+    uint16_t high = __half2ushort(frag.x[2 * i + 1]);
+    R[i] = (static_cast<uint32_t>(high) << 16) | low;
+  }
 #else
   RUNTIME_ASSERT("Unsupported CUDA architecture for ldmatrix instruction");
 #endif
@@ -93,10 +80,13 @@ __device__ __forceinline__ void ldmatrix_m8n8x2(uint32_t* R, T* smem_ptr) {
 template <typename T>
 __device__ __forceinline__ void ldmatrix_m8n8x4(uint32_t* R, T* smem_ptr) {
 #ifdef LDMATRIX_M8N8X4_ENABLED
-  uint32_t smem_int_ptr = static_cast<uint32_t>(__cvta_generic_to_shared(smem_ptr));
-  asm volatile("ldmatrix.sync.aligned.m8n8.x4.shared.b16 {%0, %1, %2, %3}, [%4];\n"
-               : "=r"(R[0]), "=r"(R[1]), "=r"(R[2]), "=r"(R[3])
-               : "r"(smem_int_ptr));
+  mtmusa::wmma::fragment<mtmusa::wmma::matrix_a, 16, 16, 16, half, mtmusa::wmma::row_major> frag;
+  mtmusa::wmma::load_matrix_sync(frag, reinterpret_cast<half*>(smem_ptr), 32);
+  for (int i = 0; i < frag.num_elements / 2; ++i) {
+    uint16_t low  = __half2ushort(frag.x[2 * i]);
+    uint16_t high = __half2ushort(frag.x[2 * i + 1]);
+    R[i] = (static_cast<uint32_t>(high) << 16) | low;
+  }
 #else
   RUNTIME_ASSERT("Unsupported CUDA architecture for ldmatrix instruction");
 #endif

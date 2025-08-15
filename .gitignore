@@ -4,6 +4,8 @@
 *.mp4
 /dist
 /test
+/csrc_musa/
+/.venv/
 __pycache__
 *.so
 evaluate/
